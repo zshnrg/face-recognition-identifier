@@ -13,6 +13,10 @@ class FaceIdentifier:
             os.makedirs(self.__imagesPath)
 
     def __loadModel(self, id):
+
+        if not os.path.exists(f'{self.__imagesPath}/{id}'):
+            return [], []
+
         known_face_encodings = []
         known_face_names = []
 
@@ -33,10 +37,11 @@ class FaceIdentifier:
         for i, img in enumerate(images):
             cv2.imwrite(f'{self.__imagesPath}/{id}/{id}_{name}_{i}.jpg', img)
 
-        
-
     def identify(self, id, img):
         known_face_encodings, known_face_names = self.__loadModel(id)
+        if not known_face_encodings:
+            return 'No images registered'
+
         face_locations = self.fr.face_locations(img)
         face_encodings = self.fr.face_encodings(img, face_locations)
 
