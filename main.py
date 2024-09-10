@@ -118,13 +118,16 @@ if __name__ == '__main__':
         os.system('cls' if os.name == 'nt' else 'clear')
 
         if option == '1':
-            register()
+            try:
+                register()
+            except Exception as e:
+                print('Error:', e)
         elif option == '2':
-            id = input('Enter your ID: ')
-            if os.path.exists(f'./images/{id}'):
+            try:
+                id = input('Enter your ID: ')
                 identify(id)
-            else:
-                print('Invalid ID')
+            except Exception as e:
+                print('Error:', e)
         elif option == '3':
             break
         else:

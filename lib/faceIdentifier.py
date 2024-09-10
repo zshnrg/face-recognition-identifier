@@ -15,7 +15,7 @@ class FaceIdentifier:
     def __loadModel(self, id):
 
         if not os.path.exists(f'{self.__imagesPath}/{id}'):
-            return [], []
+            raise Exception('ID not found')
 
         known_face_encodings = []
         known_face_names = []
@@ -33,14 +33,16 @@ class FaceIdentifier:
     def register(self, id, name, images):
         if not os.path.exists(f'{self.__imagesPath}/{id}'):
             os.makedirs(f'{self.__imagesPath}/{id}')
+        else:
+            raise Exception('ID already registered. Please use another ID')
 
         for i, img in enumerate(images):
             cv2.imwrite(f'{self.__imagesPath}/{id}/{id}_{name}_{i}.jpg', img)
 
     def identify(self, id, img):
         known_face_encodings, known_face_names = self.__loadModel(id)
-        if not known_face_encodings:
-            return 'No images registered'
+        if not known_face_encodings or not known_face_names:
+            raise Exception('No images registered')
 
         face_locations = self.fr.face_locations(img)
         face_encodings = self.fr.face_encodings(img, face_locations)
