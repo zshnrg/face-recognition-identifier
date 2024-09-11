@@ -49,13 +49,19 @@ def register():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    for i in range(10):
+    for i in range(40):
         success, frame = camera.read()
         frames.append(frame)
         cv2.imshow('frame', frame)
-        cv2.waitKey(1000)
+        cv2.waitKey(150)
 
-    face_identifier.register(id, name, frames)
+    try:
+        face_identifier.register(id, name, frames)
+    except Exception as e:
+        print('Error:', e)
+        camera.release()
+        cv2.destroyAllWindows()
+        return
 
     print('Images registered successfully. ID:', id)
 
@@ -102,11 +108,19 @@ def identify(id):
     success, frame = camera.read()
     cv2.imshow('frame', frame)
     if success:
-        name = face_identifier.identify(id, frame)
-        if name == 'Unknown':
-            print('Unknown person')
+        try:
+            name = face_identifier.identify(id, frame)
+        except Exception as e:
+            print('Error:', e)
+            camera.release()
+            cv2.destroyAllWindows()
+            return
+        if name == None:
+            print('\033[41m\033[37m[*] \033[30m\033[107m Unknown person!!! \033[0m')
         else:
+            # print the name of the person, and confidence level
             print('\033[44m\033[37m[*] \033[30m\033[107m Welcome', name, '!!! \033[0m')
+            # print('\033[44m\033[37m[*] \033[30m\033[107m Welcome', name, '!!! \033[0m')
 
     camera.release()
     cv2.destroyAllWindows()
