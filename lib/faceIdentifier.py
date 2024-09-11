@@ -1,65 +1,70 @@
-import os
-import face_recognition
 import cv2
+import os
+import numpy as np
 
 class FaceIdentifier:
+    def __init__(self, detector='haarcascade_frontalface_default.xml', model_file='face_model.yml', mapping_file='mapping.npy'):
+        self.recognizer = cv2.face.LBPHFaceRecognizer_create()
+        self.detector = cv2.CascadeClassifier(detector)
+        self.model_file = model_file
+        self.mapping_file = mapping_file
+        self.id_mapping = {}
 
-    __imagesPath = './images'
+        # Load model if it exists
+        if os.path.exists(self.model_file):
+            self.recognizer.read(self.model_file)
+            print("Model loaded from", self.model_file)
+        
+        # Load ID mapping if it exists
+        if os.path.exists(self.mapping_file):
+            self.id_mapping = np.load(self.mapping_file, allow_pickle=True).item()
+            print("ID mapping loaded from", self.mapping_file)
 
-    def __init__(self):
-        self.fr = face_recognition
+    def register(self, id, name, frames):
+        if id not in self.id_mapping:
+            # Assign a unique integer to this UUID and store the name
+            self.id_mapping[id] = {'int_id': len(self.id_mapping) + 1, 'name': name}
 
-        if not os.path.exists(self.__imagesPath):
-            os.makedirs(self.__imagesPath)
+        face_id = self.id_mapping[id]['int_id']
+        faces = []
+        ids = []
 
-    def __loadModel(self, id):
+        for frame in frames:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces_detected = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
 
-        if not os.path.exists(f'{self.__imagesPath}/{id}'):
-            raise Exception('ID not found')
+            for (x, y, w, h) in faces_detected:
+                faces.append(gray[y:y + h, x:x + w])
+                ids.append(face_id)  # Use the integer mapping
 
-        known_face_encodings = []
-        known_face_names = []
-
-        for file in os.listdir(f'{self.__imagesPath}/{id}'):
-            image = self.fr.load_image_file(f'{self.__imagesPath}/{id}/{file}')
-            # File format: id_name_[number].jpg
-            name = file.split('_')[1]
-            
-            known_face_encodings.append(self.fr.face_encodings(image)[0])
-            known_face_names.append(name)
-
-        return known_face_encodings, known_face_names
-
-    def register(self, id, name, images):
-        if not os.path.exists(f'{self.__imagesPath}/{id}'):
-            os.makedirs(f'{self.__imagesPath}/{id}')
+        if len(faces) > 0:
+            self.recognizer.train(faces, np.array(ids, dtype=np.int32))
+            self.recognizer.save(self.model_file)  # Save the model
+            np.save(self.mapping_file, self.id_mapping)  # Save the ID mapping
+            print(f"User {name} registered with ID {id}")
         else:
-            raise Exception('ID already registered. Please use another ID')
+            print("No face detected in the provided frames.")
 
-        for i, img in enumerate(images):
-            cv2.imwrite(f'{self.__imagesPath}/{id}/{id}_{name}_{i}.jpg', img)
+    def identify(self, id, frame):
+        if id not in self.id_mapping:
+            print("User ID not found")
+            return False
 
-    def identify(self, id, img):
-        known_face_encodings, known_face_names = self.__loadModel(id)
-        if not known_face_encodings or not known_face_names:
-            raise Exception('No images registered')
+        face_id = self.id_mapping[id]['int_id']
+        name = self.id_mapping[id]['name']
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces_detected = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=7)
 
-        face_locations = self.fr.face_locations(img)
-        face_encodings = self.fr.face_encodings(img, face_locations)
+        for (x, y, w, h) in faces_detected:
+            face = gray[y:y + h, x:x + w]
+            predicted_id, confidence = self.recognizer.predict(face)
 
-        for face_encoding in face_encodings:
-            matches = self.fr.compare_faces(known_face_encodings, face_encoding)
-            name = "Unknown"
+            if predicted_id == face_id and confidence < 50:
+                print(f"User identified: \n> ID: {id}\n> Name: {name}\n> Confidence: {round(100 - confidence)}%\n\n")
+                return name
+            else:
+                print(f"Failed to identify user {id}.\n> Confidence = {round(100 - confidence)}%\n> Face ID: {predicted_id}\n> Expected ID: {face_id}\n\n")
+                return None
 
-            if True in matches:
-                first_match_index = matches.index(True)
-                name = known_face_names[first_match_index]
-
-            return name
-        
-        
-
-    
-
-
-        
+        print("No face detected in the frame.")
+        return None
