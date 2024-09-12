@@ -3,13 +3,11 @@ from flask import Flask, request, render_template, Response, jsonify
 import uuid 
 import cv2
 import os
+import numpy as np
 
 app = Flask(__name__)
 
 face_identifier = FaceIdentifier()
-
-global camera
-camera = cv2.VideoCapture(0)
 
 # API routes
 
@@ -22,6 +20,9 @@ def __register():
     files = request.files.getlist('images')
     name = request.form.get('name')
     id = str(uuid.uuid4())
+
+    # Convert the images to numpy arrays
+    files = [cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR) for file in files]
 
     try:
         face_identifier.register(id, name, files)
@@ -40,6 +41,8 @@ def __identify():
     img = request.files['image']
     id = request.form.get('id')
 
+    img = cv2.imdecode(np.frombuffer(img.read(), np.uint8), cv2.IMREAD_COLOR)
+
     try:
         name = face_identifier.identify(id, img)
     except Exception as e:
@@ -47,51 +50,5 @@ def __identify():
 
     return jsonify({'name': name}), 200
 
-# Web routes
-
-def gen_frames():
-    while True:
-        success, frame = camera.read()
-
-        if not success:
-            break
-        else:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-@app.route('/')
-def home():
-    app.logger.info('Accessing home page')
-    return render_template('home.html')
-
-@app.route('/video_feed')
-def video_feed():
-    app.logger.info('Accessing video feed')
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/verify', methods=['POST'])
-def verify():
-    # Check if the user id not empty and if the user id is valid
-    id = request.form.get('id')
-    if not id:
-        app.logger.error('No id provided')
-        return render_template('home.html', error_messages=['No ID provided'])
-    
-    if not os.path.exists(f'./images/{id}'):
-        app.logger.error('Invalid id')
-        return render_template('home.html', error_messages=['Invalid ID, please register first'])
-
-    app.logger.info('Accessing verify page')
-    return render_template('verify.html')
-
-@app.route('/register', methods=['POST'])
-def register():
-    app.logger.info('Accessing register page')
-    return render_template('register.html')
-
 if __name__ == '__main__':
     app.run(debug=True)
-
-cv2.destroyAllWindows()
